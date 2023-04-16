@@ -1,0 +1,56 @@
+Resources:
+  ElasticBeanstalkApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: cloudtermproject
+      Description: Elastic Beanstalk application for my React app
+  
+  ElasticBeanstalkApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref ElasticBeanstalkApplication
+      Description: Application version for my React app
+      SourceBundle:
+        S3Bucket: bbankcloud
+        S3Key: Archive.zip
+        
+  ElasticBeanstalkEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      EnvironmentName: my-react-app-env
+      ApplicationName: !Ref ElasticBeanstalkApplication
+      SolutionStackName: 64bit Amazon Linux 2 v5.8.0 running Node.js 18
+      VersionLabel: !Ref ElasticBeanstalkApplicationVersion
+      Tier:
+        Name: WebServer
+        Type: Standard
+        Version: "1.0" 
+      OptionSettings:
+        - Namespace: 'aws:autoscaling:launchconfiguration'
+          OptionName: 'InstanceType'
+          Value: 't3.micro'
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: LoadBalancerType
+          Value: application
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: ServiceRole
+          Value: !Sub "aws-elasticbeanstalk-service-role.${AWS::Region}.amazonaws.com"
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: NODE_ENV
+          Value: production
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: IamInstanceProfile
+          Value: aws-elasticbeanstalk-ec2-role
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: REACT_APP_MY_ENV_VAR
+          Value: my-value
+
+  
+
+Outputs:
+  ApplicationURL:
+    Description: The URL of the Elastic Beanstalk application
+    Value: !Sub "http://${ElasticBeanstalkEnvironment.EndpointURL}"

@@ -1,0 +1,1091 @@
+## Blood Bank management
+# The project's goal is to develop a web app for accurately managing the blood bank. 
+# Many city blood banks now use cloud-based platforms to keep track of the blood units available or needed.  
+# In this project, simple UI to enable the users to view the blood units available in the blood bank, 
+# user can request blood as per their need and they get confirmation mail. DynamoDB stores the data at the back end. 
+
+# My web application is built on AWS services including 
+# AWS lambda,
+# AWS SNS, AWS Cognito, 
+# DynamoDB, AWS API Gateway, 
+# AWS Elastic Beanstalk 
+# CloudFormation is being used to provision all of them. 
+
+# Vrutika Kakadiya
+# B00927033
+
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  UserPool:
+    Type: 'AWS::Cognito::UserPool'
+    Properties:
+      UserPoolName: bloodauthentication
+      AutoVerifiedAttributes:
+        - email
+      Schema:
+        - AttributeDataType: String
+          Name: email
+          Mutable: true
+          Required: false  
+        - AttributeDataType: String
+          Name: password
+          Mutable: true
+          Required: false
+        - AttributeDataType: String
+          Name: phonenumber
+          Mutable: true
+          Required: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+
+
+  UserPoolClient:
+    Type: "AWS::Cognito::UserPoolClient"
+    Properties:
+      ClientName: MyUserPoolClient
+      GenerateSecret: false
+      UserPoolId: !Ref UserPool
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+      ExplicitAuthFlows:
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_CUSTOM_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+      AllowedOAuthFlowsUserPoolClient: false
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+     
+  MySNSTopic:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      DisplayName: "Bloodbank"
+      TopicName: "Bloodbank"
+  
+  MyApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: Blood-bank
+
+  LmbdaAuthenticationFunction:
+    Type: AWS::Lambda::Function
+
+    Properties:
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          CLIENT_ID: !Ref UserPoolClient
+      Code:
+        S3Bucket: cloudbbank
+        S3Key: newnew-LmbdaAuthenticationFunction-Me0XDvm5QVtM-9d2c4f7f-f197-45b0-bbba-f5308654a3fc.zip
+      #CodeUri: s3://bankregister/registration-cd22fc39-d019-4b19-bf55-c57af572e85b.zip
+      Role: >- 
+        arn:aws:iam::245148575037:role/LabRole2
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+      
+          
+
+  LmbdaAuthenticationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LmbdaAuthenticationFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApi}/*/*/*
+
+
+
+  UpdateQuantityFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: cloudbbank
+        S3Key: workwork-UpdateQuantityFunction-HEQpqbH6JusX-02a01a51-395f-447a-ab44-2048ea396143.zip
+      Role: >- 
+        arn:aws:iam::245148575037:role/LabRole2
+       #CodeUri: s3://updatequantity/updatequantity-569f030b-4738-4ca2-8a96-e4c175273dbf.zip
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+      
+  UpdateQuantityPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt UpdateQuantityFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApi}/*/*/*   
+
+  TableEntryFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: cloudbbank
+        S3Key: newcloud-TableEntryFunction-B1bKs65zx7gl-a518498a-0f85-4814-8f46-629bf91378ef.zip
+      Role: >- 
+        arn:aws:iam::245148575037:role/LabRole2
+      #CodeUri: s3://banktable/getdata-37517f9f-01fe-4d80-8120-a597bbbde074.zip
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+      
+  TableEntryPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt TableEntryFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApi}/*/*/*   
+
+  TableShowFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      #CodeUri: s3://tablerequest/tablelist-fc4e2fe0-843f-4e3a-a3ed-119349b5db25.zip
+      Code:
+        S3Bucket: cloudbbank
+        S3Key: newcloud-TableShowFunction-YGTJKwmTaTDy-b614cb53-8807-4795-9b83-7efb2283cede.zip
+      Role: >- 
+        arn:aws:iam::245148575037:role/LabRole2
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+      
+  TableShowPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt TableShowFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApi}/*/*/*   
+
+
+  SubscribeEmailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref MySNSTopic
+      #CodeUri: s3://subscribe/donation-dda4395b-d434-478e-b372-d9a8ad9a15a1.zip
+      Code:
+        S3Bucket: cloudbbank
+        S3Key: workwork-SubscribeEmailFunction-OtzTLxKoODmZ-054372d4-e190-4e35-97c9-618841569acd.zip
+      #Role: !GetAtt LambdaExecutionRole.Arn
+      
+      Role: >- 
+       arn:aws:iam::245148575037:role/LabRole2
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+      
+
+     
+
+  SubscribeEmailPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt SubscribeEmailFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApi}/*/*/*
+
+  RequestMailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref MySNSTopic
+      #CodeUri: s3://requestmail/requestmail-f5e461d3-2aee-48a4-90ab-630fedafc7bc.zip
+      Code:
+        S3Bucket: cloudbbank
+        S3Key: workwork-RequestMailFunction-6w9U0ikwXJJP-0b08795d-4f5a-4232-818b-1c90d750d0db.zip
+      #Role: !GetAtt LambdaExecutionRole.Arn
+      
+      Role: >- 
+        arn:aws:iam::245148575037:role/LabRole2
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+      
+
+  RequestMailPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt RequestMailFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApi}/*/*/*
+
+  
+  DonationMailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref MySNSTopic
+      Code:
+        S3Bucket: cloudbbank
+        S3Key: workwork-DonationMailFunction-hA3tFKtCvOsl-1e8903a2-517b-4a66-a540-522f9326b5f7.zip    
+
+      #Code: s3://donationemail/emaildonation-a7257eed-1cce-411f-b49d-9b2c460e9606.zip
+      
+      Role: >- 
+        arn:aws:iam::245148575037:role/LabRole2
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+      
+  DonationMailPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt DonationMailFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApi}/*/*/*
+
+
+  MyApiRootResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref MyApi
+      ParentId: !GetAtt MyApi.RootResourceId
+      PathPart: 'cloudauth'
+
+  ApiDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn:
+      - MyApiMethod
+      - MyApiOptionsMethod 
+      - SubscriptionMethod
+      - SubscriptionOptionsMethod
+      - tablelistPostMethod
+      - tablelistOptionsMethod
+      - MyGetMethod
+      # - MyGetOptionMethod
+      - EmailApiMethod
+      - EmailApiOptionMethod
+      - updateDataMethod
+      - updateDataOptionsMethod
+      - confirmBloodMethod
+      - confirmBloodOptionMethod
+    Properties:
+      RestApiId:
+        Ref: MyApi    
+
+  BloodbankStage:
+    Type: 'AWS::ApiGateway::Stage'
+    DependsOn:
+      - ApiDeployment
+    Properties:
+      DeploymentId:
+        Ref: ApiDeployment
+      RestApiId:
+        Ref: MyApi
+      StageName: prod
+
+
+  MyApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref MyApiRootResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        #Uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${LmbdaAuthenticationFunction.Arn}/invocations"
+        Uri:
+          'Fn::Join':
+            - ''
+            - - 'arn:aws:apigateway:'
+              - Ref: 'AWS::Region'
+              - ':lambda:path/2015-03-31/functions/'
+              - 'Fn::GetAtt':
+                  - LmbdaAuthenticationFunction
+                  - Arn
+              - /invocations
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'POST'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+        RequestTemplates:
+          application/json: '#set($allParams = $input.params())
+                    {
+                    "body-json" : $input.json("$"),
+                    "params" : {
+                    #foreach($type in $allParams.keySet())
+                        #set($params = $allParams.get($type))
+                    "$type" : {
+                        #foreach($paramName in $params.keySet())
+                        "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                            #if($foreach.hasNext),#end
+                        #end
+                    }
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "stage-variables" : {
+                    #foreach($key in $stageVariables.keySet())
+                    "$key" : "$util.escapeJavaScript($stageVariables.get($key))"
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "context" : {
+                        "account-id" : "$context.identity.accountId",
+                        "api-id" : "$context.apiId",
+                        "api-key" : "$context.identity.apiKey",
+                        "authorizer-principal-id" : "$context.authorizer.principalId",
+                        "caller" : "$context.identity.caller",
+                        "cognito-authentication-provider" : "$context.identity.cognitoAuthenticationProvider",
+                        "cognito-authentication-type" : "$context.identity.cognitoAuthenticationType",
+                        "cognito-identity-id" : "$context.identity.cognitoIdentityId",
+                        "cognito-identity-pool-id" : "$context.identity.cognitoIdentityPoolId",
+                        "http-method" : "$context.httpMethod",
+                        "stage" : "$context.stage",
+                        "source-ip" : "$context.identity.sourceIp",
+                        "user" : "$context.identity.user",
+                        "user-agent" : "$context.identity.userAgent",
+                        "user-arn" : "$context.identity.userArn",
+                        "request-id" : "$context.requestId",
+                        "resource-id" : "$context.resourceId",
+                        "resource-path" : "$context.resourcePath"
+                        }
+                    }'    
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"  
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+
+
+  MyApiOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref MyApiRootResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: OPTIONS
+        
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'OPTIONS'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+      
+
+
+  SubscriptionResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref MyApi
+      ParentId: !GetAtt MyApi.RootResourceId
+      PathPart: 'subscription'
+
+  SubscriptionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref SubscriptionResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        #Uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${SubscribeEmailFunction.Arn}/invocations"
+        Uri:
+          'Fn::Join':
+            - ''
+            - - 'arn:aws:apigateway:'
+              - Ref: 'AWS::Region'
+              - ':lambda:path/2015-03-31/functions/'
+              - 'Fn::GetAtt':
+                  - SubscribeEmailFunction
+                  - Arn
+              - /invocations
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'POST'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+        RequestTemplates:
+          application/json: '#set($allParams = $input.params())
+                    {
+                    "body-json" : $input.json("$"),
+                    "params" : {
+                    #foreach($type in $allParams.keySet())
+                        #set($params = $allParams.get($type))
+                    "$type" : {
+                        #foreach($paramName in $params.keySet())
+                        "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                            #if($foreach.hasNext),#end
+                        #end
+                    }
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "stage-variables" : {
+                    #foreach($key in $stageVariables.keySet())
+                    "$key" : "$util.escapeJavaScript($stageVariables.get($key))"
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "context" : {
+                        "account-id" : "$context.identity.accountId",
+                        "api-id" : "$context.apiId",
+                        "api-key" : "$context.identity.apiKey",
+                        "authorizer-principal-id" : "$context.authorizer.principalId",
+                        "caller" : "$context.identity.caller",
+                        "cognito-authentication-provider" : "$context.identity.cognitoAuthenticationProvider",
+                        "cognito-authentication-type" : "$context.identity.cognitoAuthenticationType",
+                        "cognito-identity-id" : "$context.identity.cognitoIdentityId",
+                        "cognito-identity-pool-id" : "$context.identity.cognitoIdentityPoolId",
+                        "http-method" : "$context.httpMethod",
+                        "stage" : "$context.stage",
+                        "source-ip" : "$context.identity.sourceIp",
+                        "user" : "$context.identity.user",
+                        "user-agent" : "$context.identity.userAgent",
+                        "user-arn" : "$context.identity.userArn",
+                        "request-id" : "$context.requestId",
+                        "resource-id" : "$context.resourceId",
+                        "resource-path" : "$context.resourcePath"
+                        }
+                    }'    
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+
+  SubscriptionOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref SubscriptionResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: OPTIONS
+        
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'OPTIONS'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true          
+     
+      
+
+  tablelistResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref MyApi
+      ParentId: !GetAtt MyApi.RootResourceId
+      PathPart: tablelist
+
+  tablelistPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref tablelistResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        #Uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${TableEntryFunction.Arn}/invocations"
+        Uri:
+          'Fn::Join':
+            - ''
+            - - 'arn:aws:apigateway:'
+              - Ref: 'AWS::Region'
+              - ':lambda:path/2015-03-31/functions/'
+              - 'Fn::GetAtt':
+                  - TableEntryFunction
+                  - Arn
+              - /invocations
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'POST'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+        RequestTemplates:
+          application/json: '#set($allParams = $input.params())
+                    {
+                    "body-json" : $input.json("$"),
+                    "params" : {
+                    #foreach($type in $allParams.keySet())
+                        #set($params = $allParams.get($type))
+                    "$type" : {
+                        #foreach($paramName in $params.keySet())
+                        "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                            #if($foreach.hasNext),#end
+                        #end
+                    }
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "stage-variables" : {
+                    #foreach($key in $stageVariables.keySet())
+                    "$key" : "$util.escapeJavaScript($stageVariables.get($key))"
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "context" : {
+                        "account-id" : "$context.identity.accountId",
+                        "api-id" : "$context.apiId",
+                        "api-key" : "$context.identity.apiKey",
+                        "authorizer-principal-id" : "$context.authorizer.principalId",
+                        "caller" : "$context.identity.caller",
+                        "cognito-authentication-provider" : "$context.identity.cognitoAuthenticationProvider",
+                        "cognito-authentication-type" : "$context.identity.cognitoAuthenticationType",
+                        "cognito-identity-id" : "$context.identity.cognitoIdentityId",
+                        "cognito-identity-pool-id" : "$context.identity.cognitoIdentityPoolId",
+                        "http-method" : "$context.httpMethod",
+                        "stage" : "$context.stage",
+                        "source-ip" : "$context.identity.sourceIp",
+                        "user" : "$context.identity.user",
+                        "user-agent" : "$context.identity.userAgent",
+                        "user-arn" : "$context.identity.userArn",
+                        "request-id" : "$context.requestId",
+                        "resource-id" : "$context.resourceId",
+                        "resource-path" : "$context.resourcePath"
+                        }
+                    }'    
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+
+  tablelistOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref tablelistResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: OPTIONS
+        
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'OPTIONS'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true          
+  
+
+  MyGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref tablelistResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: GET
+        #Uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${TableShowFunction.Arn}/invocations"
+        Uri:
+          'Fn::Join':
+            - ''
+            - - 'arn:aws:apigateway:'
+              - Ref: 'AWS::Region'
+              - ':lambda:path/2015-03-31/functions/'
+              - 'Fn::GetAtt':
+                  - TableShowFunction
+                  - Arn
+              - /invocations
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'GET'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+        RequestTemplates:
+          application/json: '#set($allParams = $input.params())
+                    {
+                    "body-json" : $input.json("$"),
+                    "params" : {
+                    #foreach($type in $allParams.keySet())
+                        #set($params = $allParams.get($type))
+                    "$type" : {
+                        #foreach($paramName in $params.keySet())
+                        "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                            #if($foreach.hasNext),#end
+                        #end
+                    }
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "stage-variables" : {
+                    #foreach($key in $stageVariables.keySet())
+                    "$key" : "$util.escapeJavaScript($stageVariables.get($key))"
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "context" : {
+                        "account-id" : "$context.identity.accountId",
+                        "api-id" : "$context.apiId",
+                        "api-key" : "$context.identity.apiKey",
+                        "authorizer-principal-id" : "$context.authorizer.principalId",
+                        "caller" : "$context.identity.caller",
+                        "cognito-authentication-provider" : "$context.identity.cognitoAuthenticationProvider",
+                        "cognito-authentication-type" : "$context.identity.cognitoAuthenticationType",
+                        "cognito-identity-id" : "$context.identity.cognitoIdentityId",
+                        "cognito-identity-pool-id" : "$context.identity.cognitoIdentityPoolId",
+                        "http-method" : "$context.httpMethod",
+                        "stage" : "$context.stage",
+                        "source-ip" : "$context.identity.sourceIp",
+                        "user" : "$context.identity.user",
+                        "user-agent" : "$context.identity.userAgent",
+                        "user-arn" : "$context.identity.userArn",
+                        "request-id" : "$context.requestId",
+                        "resource-id" : "$context.resourceId",
+                        "resource-path" : "$context.resourcePath"
+                        }
+                    }'    
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+
+ 
+
+  EmailApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref MyApi
+      ParentId: !GetAtt MyApi.RootResourceId
+      PathPart: donationemail
+
+  EmailApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref EmailApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri:
+          'Fn::Join':
+            - ''
+            - - 'arn:aws:apigateway:'
+              - Ref: 'AWS::Region'
+              - ':lambda:path/2015-03-31/functions/'
+              - 'Fn::GetAtt':
+                  - DonationMailFunction
+                  - Arn
+              - /invocations
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'POST'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+        RequestTemplates:
+          application/json: '#set($allParams = $input.params())
+                    {
+                    "body-json" : $input.json("$"),
+                    "params" : {
+                    #foreach($type in $allParams.keySet())
+                        #set($params = $allParams.get($type))
+                    "$type" : {
+                        #foreach($paramName in $params.keySet())
+                        "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                            #if($foreach.hasNext),#end
+                        #end
+                    }
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "stage-variables" : {
+                    #foreach($key in $stageVariables.keySet())
+                    "$key" : "$util.escapeJavaScript($stageVariables.get($key))"
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "context" : {
+                        "account-id" : "$context.identity.accountId",
+                        "api-id" : "$context.apiId",
+                        "api-key" : "$context.identity.apiKey",
+                        "authorizer-principal-id" : "$context.authorizer.principalId",
+                        "caller" : "$context.identity.caller",
+                        "cognito-authentication-provider" : "$context.identity.cognitoAuthenticationProvider",
+                        "cognito-authentication-type" : "$context.identity.cognitoAuthenticationType",
+                        "cognito-identity-id" : "$context.identity.cognitoIdentityId",
+                        "cognito-identity-pool-id" : "$context.identity.cognitoIdentityPoolId",
+                        "http-method" : "$context.httpMethod",
+                        "stage" : "$context.stage",
+                        "source-ip" : "$context.identity.sourceIp",
+                        "user" : "$context.identity.user",
+                        "user-agent" : "$context.identity.userAgent",
+                        "user-arn" : "$context.identity.userArn",
+                        "request-id" : "$context.requestId",
+                        "resource-id" : "$context.resourceId",
+                        "resource-path" : "$context.resourcePath"
+                        }
+                    }'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+
+  EmailApiOptionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref EmailApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: OPTIONS
+        
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'OPTIONS'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true          
+
+
+  updateDataResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref MyApi
+      ParentId: !GetAtt MyApi.RootResourceId
+      PathPart: update
+
+  updateDataMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref updateDataResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        #Uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${UpdateQuantityFunction.Arn}/invocations"
+        Uri:
+          'Fn::Join':
+            - ''
+            - - 'arn:aws:apigateway:'
+              - Ref: 'AWS::Region'
+              - ':lambda:path/2015-03-31/functions/'
+              - 'Fn::GetAtt':
+                  - UpdateQuantityFunction
+                  - Arn
+              - /invocations
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'POST'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+        RequestTemplates:
+          application/json: '#set($allParams = $input.params())
+                    {
+                    "body-json" : $input.json("$"),
+                    "params" : {
+                    #foreach($type in $allParams.keySet())
+                        #set($params = $allParams.get($type))
+                    "$type" : {
+                        #foreach($paramName in $params.keySet())
+                        "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                            #if($foreach.hasNext),#end
+                        #end
+                    }
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "stage-variables" : {
+                    #foreach($key in $stageVariables.keySet())
+                    "$key" : "$util.escapeJavaScript($stageVariables.get($key))"
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "context" : {
+                        "account-id" : "$context.identity.accountId",
+                        "api-id" : "$context.apiId",
+                        "api-key" : "$context.identity.apiKey",
+                        "authorizer-principal-id" : "$context.authorizer.principalId",
+                        "caller" : "$context.identity.caller",
+                        "cognito-authentication-provider" : "$context.identity.cognitoAuthenticationProvider",
+                        "cognito-authentication-type" : "$context.identity.cognitoAuthenticationType",
+                        "cognito-identity-id" : "$context.identity.cognitoIdentityId",
+                        "cognito-identity-pool-id" : "$context.identity.cognitoIdentityPoolId",
+                        "http-method" : "$context.httpMethod",
+                        "stage" : "$context.stage",
+                        "source-ip" : "$context.identity.sourceIp",
+                        "user" : "$context.identity.user",
+                        "user-agent" : "$context.identity.userAgent",
+                        "user-arn" : "$context.identity.userArn",
+                        "request-id" : "$context.requestId",
+                        "resource-id" : "$context.resourceId",
+                        "resource-path" : "$context.resourcePath"
+                        }
+                    }'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+
+  updateDataOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref updateDataResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: OPTIONS
+        #Uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${UpdateQuantityFunction.Arn}/invocations"
+        
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ""
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'OPTIONS'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: "Empty"
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true  
+
+  confirmBloodResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref MyApi
+      ParentId: !GetAtt MyApi.RootResourceId
+      PathPart: confirmation
+
+  confirmBloodMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref confirmBloodResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        #Uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${RequestMailFunction.Arn}/invocations"
+        Uri:
+          'Fn::Join':
+            - ''
+            - - 'arn:aws:apigateway:'
+              - Ref: 'AWS::Region'
+              - ':lambda:path/2015-03-31/functions/'
+              - 'Fn::GetAtt':
+                  - RequestMailFunction
+                  - Arn
+              - /invocations
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ''
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'POST'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+        RequestTemplates:
+          application/json: '#set($allParams = $input.params())
+                    {
+                    "body-json" : $input.json("$"),
+                    "params" : {
+                    #foreach($type in $allParams.keySet())
+                        #set($params = $allParams.get($type))
+                    "$type" : {
+                        #foreach($paramName in $params.keySet())
+                        "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                            #if($foreach.hasNext),#end
+                        #end
+                    }
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "stage-variables" : {
+                    #foreach($key in $stageVariables.keySet())
+                    "$key" : "$util.escapeJavaScript($stageVariables.get($key))"
+                        #if($foreach.hasNext),#end
+                    #end
+                    },
+                    "context" : {
+                        "account-id" : "$context.identity.accountId",
+                        "api-id" : "$context.apiId",
+                        "api-key" : "$context.identity.apiKey",
+                        "authorizer-principal-id" : "$context.authorizer.principalId",
+                        "caller" : "$context.identity.caller",
+                        "cognito-authentication-provider" : "$context.identity.cognitoAuthenticationProvider",
+                        "cognito-authentication-type" : "$context.identity.cognitoAuthenticationType",
+                        "cognito-identity-id" : "$context.identity.cognitoIdentityId",
+                        "cognito-identity-pool-id" : "$context.identity.cognitoIdentityPoolId",
+                        "http-method" : "$context.httpMethod",
+                        "stage" : "$context.stage",
+                        "source-ip" : "$context.identity.sourceIp",
+                        "user" : "$context.identity.user",
+                        "user-agent" : "$context.identity.userAgent",
+                        "user-arn" : "$context.identity.userArn",
+                        "request-id" : "$context.requestId",
+                        "resource-id" : "$context.resourceId",
+                        "resource-path" : "$context.resourcePath"
+                        }
+                    }'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+  
+  confirmBloodOptionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !Ref confirmBloodResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: OPTIONS
+        #Uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${RequestMailFunction.Arn}/invocations"
+        
+        IntegrationResponses:
+        - StatusCode: 200
+          ResponseTemplates:
+            application/json: ''
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            "method.response.header.Access-Control-Allow-Methods": "'OPTIONS'"
+            "method.response.header.Access-Control-Allow-Origin": "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+  
+
+Outputs:
+  ApiEndpoint:
+    Value: !Sub "https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
